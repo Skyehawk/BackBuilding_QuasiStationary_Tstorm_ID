@@ -1,5 +1,7 @@
 # AWS Batch Python Tutorial
 
+This work was initilized with the framework provided by Github User Ryerkerk: https://github.com/ryerkerk/aws-batch-python-tutorial
+
 ![](https://raw.githubusercontent.com/ryerkerk/aws-batch-python-tutorial/master/img/pipeline.png)
 
 
