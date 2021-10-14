@@ -1,0 +1,45 @@
+{
+    "jobName": "Batch_Dev_testing",
+    "jobQueue": "Batch_NEXRADL2_ROI_Hovmoller_Gen_Queue",
+    "jobDefinition": "Batch_NEXRADL2_ROI_Hovmoller_Gen",
+    "containerOverrides": {
+        "environment": [
+            {
+                "name": "save_name",
+                "value": "sample_job_1"
+            },
+            {
+                "name": "convTime",
+                "value": "202106082000"
+            },
+            {
+                "name": "convInterval",
+                "value": "0030"
+            },
+            {
+                "name": "convThreshMin",
+                "value": "35.0"
+            },
+            {
+                "name": "convLat",
+                "value": "46.276"
+            },
+            {
+                "name": "convLon",
+                "value": "-100.685"
+            },
+            {
+                "name": "convBearing",
+                "value": "0.00"
+            },
+            {
+                "name": "sensor",
+                "value": "KBIS"
+            },
+            {
+                "name": "scaleFactor",
+                "value": "2.0"
+            }
+        ]
+    }
+}

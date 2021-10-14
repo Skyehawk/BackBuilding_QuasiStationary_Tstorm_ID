@@ -1,0 +1,22 @@
+# ignore .git and .cache folders
+.git
+.cache
+
+# ignore folders
+branches/
+hooks/
+img/
+info/
+objects/
+
+# ignore files
+config
+head
+description
+job_params_*.json
+
+
+# ignore all markdown files (md) beside all README*.md other than README-secret.md
+*.md
+!README*.md
+README-secret.md

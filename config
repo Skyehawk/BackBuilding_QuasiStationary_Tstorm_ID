@@ -1,0 +1,7 @@
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = true
+[remote "orgin"]
+	url = https://github.com/Skyehawk/BackBuilding_QuasiStationary_Tstorm_ID.git
+	fetch = +refs/heads/*:refs/remotes/orgin/*
