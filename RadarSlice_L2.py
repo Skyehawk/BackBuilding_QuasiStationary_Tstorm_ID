@@ -5,7 +5,7 @@
 # @date: 2020-04-27
 #
 # Updated
-# 2020-04-28
+# 2021-10-16
 #
 
 # --- Imports ---
@@ -94,12 +94,6 @@ class RadarSlice_L2(object):
             self._varReflectivity = -1.0
         return self._varReflectivity
 
-    #@property
-    #def axisCollapse(self):
-    #    if not hasattr(self, '_varReflectivity'):
-    #        self.axisCollapse = None
-    #    return self._axisCollapse
-
     @metadata.setter
     def metadata(self, value):
         self._metadata = value
@@ -147,10 +141,6 @@ class RadarSlice_L2(object):
     @varReflectivity.setter
     def varReflectivity(self, value):
         self._varReflectivity = value
-
-    #@axisCollapse.setter
-    #def axisCollapse(self, value):
-    #    self._axisCollapse = value
 
     # Constructor (init)
     def __init__(self, radarFile, sweep=0):
@@ -203,26 +193,30 @@ class RadarSlice_L2(object):
         self.ylocs = (self.ref_range * np.cos(np.deg2rad(self.az[0:, np.newaxis]))/self.kmPerDeg)
         return True
 
-    def __polar_to_cart_interpolation(lats, lons, data, grid_size_degree, mesh=False):
-        # Page 32 of: https://skemman.is/bitstream/1946/16233/1/final_processingwithpython_dillon.pdf  
-        # We want to interpolate it to a global x-degree grid
-        deg2rad = np.pi/180.
-        new_lats = np.linspace(grid_size_deg, 180, 180/grid_size_deg)
-        new_lons = np.linspace(grid_size_deg, 360, 360/grid_size_deg)
-        new_lats_mesh, new_lons_mesh = np.meshgrid(new_lats*deg2rad, new_lons*deg2rad)
+    def get_interp_grid(self, grid_size_degree=0.025):
+        lonMin, lonMax = np.min(self.xlocs), np.max(self.xlocs)
+        latMin, latMax = np.min(self.ylocs), np.max(self.ylocs)
+
+        #Dimentions of regular grid
+        latN = np.floor(np.abs(latMax-latMin)/grid_size_degree)
+        lonN = np.floor(np.abs(lonMax-lonMin)/grid_size_degree)
+        #ny, nx = 1500, 1500
+
+        #Generate a regular grid to interpolate the data.
+        xgrid, ygrid = np.mgrid[lonMin:lonMax:lonN*1j,
+                                latMin:latMax:latN*1j]  # we use the "j" complex number notation here to make both endpoints inclusive for the np.mgrid function
+
+        #reshape for interpolation
+        interp_locs = np.dstack((self.xlocs, self.ylocs)).reshape(self.xlocs.size,2)
+        grid = np.dstack((xgrid, ygrid)).reshape(xgrid.size,2)
+
+        interp_grid = griddata(points=interp_locs,
+              values=np.ravel(self.data),
+              xi=grid, method='linear')
+
+        interp_grid = interp_grid.reshape(np.shape(xgrid))
         
-        #We need to set up the interpolator object’’’
-        lut = RectSphereBivariateSpline(lats*deg2rad, lons*deg2rad, data)
-        
-        #Finally we interpolate the data. The RectSphereBivariateSpline
-        #object only takes 1-D arrays as input, therefore we need to do some reshaping.
-        new_lats = new_lats_mesh.ravel()
-        new_lons = new_lons_mesh.ravel()
-        data_interp = lut.ev(new_lats,new_lons)
-        if mesh == True:
-            data_interp = data_interp.reshape((360/grid_size_deg,
-                        180/grid_size_deg)).T
-        return new_lats/deg2rad, new_lons/deg2rad, data_interp
+        return xgrid, ygrid, interp_grid
 
     def shift_cart_orgin(self, offset):
         #offset must be in decimal degrees for (lat,lon)
@@ -270,18 +264,6 @@ class RadarSlice_L2(object):
 
     def clear_data(self):
         self.data = None
-
-    #def collpase_axis(self, axis=1, mode="mean"):
-    #    if mode == "mean":
-    #        self.axisCollapse = np.mean(self.data, axis=axis)
-    #    elif mode == 'max':
-    #        self.axisCollapse = np.max(self.data, axis=axis)
-    #    elif mode == 'min':
-    #        self.axisCollapse = np.min(self.data, axis=axis)
-    #    else:
-    #        print('axis collapse error')
-    #    print(self.axisCollapse)
-    #    return self.axisCollapse
 
     def __str__(self):
         return ('string method for radarSlice')

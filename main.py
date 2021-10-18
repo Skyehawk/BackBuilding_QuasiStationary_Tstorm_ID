@@ -5,15 +5,17 @@ import numpy as np
 import s3fs
 import pandas as pd
 from metpy.io import Level2File
+from metpy.plots import add_timestamp, colortables, ctables
 
 import time
 import datetime
 import multiprocessing as mp
 from multiprocessing.pool import ThreadPool as TPool
 
-import tqdm
 import logging
 
+import matplotlib.pyplot as plt 
+from matplotlib import dates as mpl_dates
 
 from RadarSlice_L2 import RadarSlice_L2
 from RadarROI_L2 import RadarROI_L2
@@ -89,8 +91,11 @@ def calculate_radar_stats(d, radarFile):
 
     #roi.extractROI(baseBearing=params['convBearing'])           # General locating
     roi.extractROI(baseCrds=baseCrds, baseBearing=params['convBearing'], scaleFactor=params['scaleFactor'])
-    
-    roi.clipped_axis_collapse(axis=0, mode="mean")
+    print('Entering interpolation')
+    roiRegGrid = roi.get_interp_grid()
+
+
+    #roiRegGrid_collapse = np.nanmean(roiRegGrid[2], axis=0)
 
     reflectThresh = params['convThreshMin']                      # return strength threshold (135.0 = 35dbz)     
     roi.find_area(reflectThresh)
@@ -99,7 +104,7 @@ def calculate_radar_stats(d, radarFile):
     d[roi.sweepDateTime] = [roi.sweepDateTime,roi.metadata,roi.sensorData,\
                             roi.mask,roi.xlocs,roi.ylocs,roi.clippedData,\
                             roi.polyVerts,offset,roi.area,roi.meanReflectivity,\
-                            roi.varReflectivity, roi.clippedAxisCollapse]
+                            roi.varReflectivity, roiRegGrid]
     #del roi
 
 if __name__ == "__main__":
@@ -189,14 +194,78 @@ if __name__ == "__main__":
     print(resultsDF[['areaValue','refValue']].head(5))
     print(resultsDF.info(verbose=True))
 
-    print(f"collapse df vals: {resultsDF['axisCollapseValues'].values}")
-    hov = np.array(resultsDF['axisCollapseValues'])#.squeeze()
+    #print(f"collapse df vals: {resultsDF['axisCollapseValues'].values}")
+    #hov = np.array(resultsDF['axisCollapseValues'])#.squeeze()
     #print(np.shape(hov))
 
 
     elapsed = (f'{time.time() - start}')
     print(f'elapsed: {elapsed}')
     #print(filesToWorkers)
+
+    # --- Plot time series---
+    fig, axes = plt.subplots(4, 4, figsize=(30, 30),
+     gridspec_kw={'width_ratios': [10, 10, 10, 10], 'height_ratios': [10, 1, 10, 1], 'wspace': 0.375, 'hspace': 0.375})
+
+    date_format = mpl_dates.DateFormatter('%H:%Mz')
+
+    for i, (dt, record) in enumerate(resultsDF.iterrows()):
+        plotx = i%4
+        ploty = int(i/4)
+
+        negXLim = -.5
+        posXLim = 1.5
+        negYLim = -1.0
+        posYLim = 1.0
+
+        norm, cmap = ctables.registry.get_with_steps('NWSReflectivity', 5,5)
+        tempdata = record['axisCollapseValues'][2]                  # create a deep copy of data to maipulate for plotting
+        tempdata2 = record['data']
+        tempdata[tempdata == 0] = np.ma.masked                      # mask out 0s for plotting
+ 
+        axes[ploty][plotx].pcolormesh(record['axisCollapseValues'][0], record['axisCollapseValues'][1], 
+                                        tempdata, norm=norm, cmap=cmap, shading='auto')        
+        axes[ploty][plotx].set_aspect(aspect='equal')
+        axes[ploty][plotx].set_xlim(negXLim, posXLim)
+        axes[ploty][plotx].set_ylim(negYLim, posYLim)
+        pVXs, pVYs = zip(*record['polyVerts'])                      # create lists of x and y values for transformed polyVerts
+        axes[ploty][plotx].plot(pVXs,pVYs)
+        if negXLim < record['offset'][1] < posXLim and \
+            negYLim < record['offset'][0] < posYLim: 
+            axes[ploty][plotx].plot(record['offset'][1], record['offset'][0], 'o')          # Location of the radar
+            axes[ploty][plotx].text(record['offset'][1], record['offset'][0], record['sensorData']['siteID'])
+            
+        axes[ploty][plotx].plot(0.0, 0.0, 'bx')                     # Location of the convection
+        axes[ploty][plotx].text(0.0, 0.0, str(params['convLat']) + ' , ' + str(params['convLat']))
+        #add_timestamp(axes[ploty][plotx], record['sweepDateTime'], y=0.02, high_contrast=True)
+        axes[ploty][plotx].tick_params(axis='both', which='both')
+
+
+# ------ debug ----
+        tempdata2 = record['data']
+        tempdata2[tempdata2 == 0] = np.ma.masked                      # mask out 0s for plotting
+
+        axes[ploty + 2][plotx].pcolormesh(record['xlocs'], record['ylocs'], 
+                                        tempdata2, norm=norm, cmap=cmap, shading='auto')        
+        axes[ploty + 2][plotx].set_aspect(aspect='equal')
+        axes[ploty + 2][plotx].set_xlim(negXLim, posXLim)
+        axes[ploty+ 2][plotx].set_ylim(negYLim, posYLim)
+        pVXs, pVYs = zip(*record['polyVerts'])                      # create lists of x and y values for transformed polyVerts
+        axes[ploty+ 2][plotx].plot(pVXs,pVYs)
+        if negXLim < record['offset'][1] < posXLim and \
+            negYLim < record['offset'][0] < posYLim: 
+            axes[ploty+ 2][plotx].plot(record['offset'][1], record['offset'][0], 'o')          # Location of the radar
+            axes[ploty+ 2][plotx].text(record['offset'][1], record['offset'][0], record['sensorData']['siteID'])
+            
+        axes[ploty+ 2][plotx].plot(0.0, 0.0, 'bx')                     # Location of the convection
+        axes[ploty+ 2][plotx].text(0.0, 0.0, str(params['convLat']) + ' , ' + str(params['convLat']))
+        #add_timestamp(axes[ploty+ 4][plotx], record['sweepDateTime'], y=0.02, high_contrast=True)
+        axes[ploty+ 2][plotx].tick_params(axis='both', which='both')
+# ------- debug ----
+
+
+
+    plt.show()
 
     # Write results to file with the provided "save_name"
     pickle.dump(elapsed, open('{}.p'.format(params['save_name']), 'wb'))

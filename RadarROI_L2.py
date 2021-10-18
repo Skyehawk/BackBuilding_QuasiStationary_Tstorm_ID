@@ -5,13 +5,13 @@
 # @date: 2020-04-28
 #
 # Updated
-# 2020-04-28
+# 2021-10-16
 #
 
 # --- Imports ---
 import numpy as np
 from matplotlib.path import Path
-from scipy.interpolate import RectSphereBivariateSpline
+from scipy.interpolate import griddata
 from Transformation_Matrix_2 import comp_matrix
 from RadarSlice_L2 import RadarSlice_L2
 
@@ -32,12 +32,6 @@ class RadarROI_L2(RadarSlice_L2):
     @property
     def mask(self):
         return self._mask
-    
-    @property
-    def clippedAxisCollapse(self):
-        if not hasattr(self, '_clippedAxisCollapse'):
-            self._clippedAxisCollapse = np.empty((1))
-        return self._clippedAxisCollapse
 
     @property
     def area(self):
@@ -82,10 +76,6 @@ class RadarROI_L2(RadarSlice_L2):
     def mask(self, value):
         self._mask = value
 
-    @clippedAxisCollapse.setter
-    def clippedAxisCollapse(self, value):
-        self._clippedAxisCollapse = value
-
     @area.setter
     def area(self,value):
         self._area = value
@@ -122,7 +112,10 @@ class RadarROI_L2(RadarSlice_L2):
                         shear=np.ones(3), translation=np.zeros(3))
 
         self.polyVerts = self.tm.dot(baseCrds.T).T[:,:2]    # Apply transformation Matrix, remove padding, and re-transpose
-        
+        print(self.polyVerts)
+        print(type(self.polyVerts))
+
+
         # --- Generate ROI from coordiantes (above) create 2D boolean array to mask with ---
         xp,yp = self.xlocs.flatten(),self.ylocs.flatten()
         points = np.vstack((xp,yp)).T
@@ -168,27 +161,35 @@ class RadarROI_L2(RadarSlice_L2):
         #self.varReflectivity = np.var(np.array(list(filter(lambda x: x >= reflectThresh, self.clippedData.flatten()))))
         return self.varReflectivity
 
-    #def clipped_axis_collapse(self, axis=0, mode='mean', grid_size_deg=0.00225):
-    #    self.stackedData = np.dstack([self.clippedData, self.clippedRangeMap])
-    #    projected_lats, projected_lons, projected_data = __polar_to_cart_interpolation(lats=self.ylocs,\
-    #        lons=self.xlocs, data=self.stackedData[:,:,1], grid_size_deg=grid_size_deg)
+    #Override
+    def get_interp_grid(self, grid_size_degree=0.0025):
+        #lonMin, lonMax = np.min(self.xlocs), np.max(self.xlocs)
+        #latMin, latMax = np.min(self.ylocs), np.max(self.ylocs)
 
-    #    print(projected_lats)
+        lonMin, lonMax = np.min(self.polyVerts[:,0]), np.max(self.polyVerts[:,0])
+        latMin, latMax = np.min(self.polyVerts[:,1]), np.max(self.polyVerts[:,1])
 
+        print(np.min(self.polyVerts[:,0]))
 
-        #print(f'clipped shape: {np.shape(self.clippedData)}')
-    #    print(f'stacked shape: {np.shape(np.average(self.stackedData[:,:,0]*self.stackedData[:,:,1], axis=1))}')
-    #    if mode == "mean":
-    #        self.axisCollapse = np.average(self.stackedData[:,:,0]*self.stackedData[:,:,1], axis=axis)
-    #        #print(f'collapsed_mean: {self.axisCollapse}')
-    #    elif mode == 'max':
-    #        self.axisCollapse = np.max(self.stackedData[:,:,0]*self.stackedData[:,:,1], axis=axis)
-    #    elif mode == 'min':
-    #        self.axisCollapse = np.min(self.stackedData[:,:,0]*self.stackedData[:,:,1], axis=axis)
-    #    else:
-    #        print('axis collapse error')
-    #    #print(self.clippedAxisCollapse)
-    #    return self.axisCollapse
+        #Dimentions of regular grid
+        latN = np.floor(np.abs(latMax-latMin)/grid_size_degree)
+        lonN = np.floor(np.abs(lonMax-lonMin)/grid_size_degree)
+        #ny, nx = 1500, 1500
+
+        #Generate a regular grid to interpolate the data.
+        xgrid, ygrid = np.mgrid[lonMin:lonMax:lonN*1j,
+                                latMin:latMax:latN*1j]  # we use the "j" complex number notation here to make both endpoints inclusive for the np.mgrid function
+        #reshape for interpolation
+        interp_locs = np.dstack((self.xlocs, self.ylocs)).reshape(self.xlocs.size,2)
+        grid = np.dstack((xgrid, ygrid)).reshape(xgrid.size,2)
+
+        interp_grid= griddata(points=interp_locs,
+              values=np.ravel(self.clippedData),
+              xi=grid, method='linear')
+
+        interp_grid = interp_grid.reshape(np.shape(xgrid))
+
+        return xgrid.T, ygrid.T, interp_grid.T
 
     #Override
     def __str__(self):
