@@ -14,7 +14,7 @@
             },
             {
                 "name": "convInterval",
-                "value": "0030"
+                "value": "0020"
             },
             {
                 "name": "convThreshMin",

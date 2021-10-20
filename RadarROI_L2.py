@@ -112,9 +112,6 @@ class RadarROI_L2(RadarSlice_L2):
                         shear=np.ones(3), translation=np.zeros(3))
 
         self.polyVerts = self.tm.dot(baseCrds.T).T[:,:2]    # Apply transformation Matrix, remove padding, and re-transpose
-        print(self.polyVerts)
-        print(type(self.polyVerts))
-
 
         # --- Generate ROI from coordiantes (above) create 2D boolean array to mask with ---
         xp,yp = self.xlocs.flatten(),self.ylocs.flatten()
@@ -168,8 +165,6 @@ class RadarROI_L2(RadarSlice_L2):
 
         lonMin, lonMax = np.min(self.polyVerts[:,0]), np.max(self.polyVerts[:,0])
         latMin, latMax = np.min(self.polyVerts[:,1]), np.max(self.polyVerts[:,1])
-
-        print(np.min(self.polyVerts[:,0]))
 
         #Dimentions of regular grid
         latN = np.floor(np.abs(latMax-latMin)/grid_size_degree)
