@@ -37,7 +37,7 @@ def parse_arg():
     parser.add_argument("-b", "--convBearing", type=float, help="passed: -b Bearing of storm training, in Rads, measured CCW from East")
     parser.add_argument("-s", "--sensor", help=" 4 letter code for sensor")
     parser.add_argument("-sf", "--scaleFactor", type=float, default=1.0, help=" (Optional) Scale factor for ROI when performing sensitivity analysis")
-    parser.add_argument("-th", "--thinning" type=int, default=2, help=" (Optional) thinning of NEXRAD files to process")
+    parser.add_argument("-th", "--thinning", type=int, default=2, help=" (Optional) thinning of NEXRAD files to process")
 
     params = vars(parser.parse_args())
 
