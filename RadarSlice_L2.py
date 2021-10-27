@@ -182,7 +182,7 @@ class RadarSlice_L2(object):
         self.ylocs = (self.ref_range * np.cos(np.deg2rad(self.az[0:, np.newaxis]))/self.kmPerDeg)
         return True
 
-    def get_interp_grid(self, grid_size_degree=0.025):
+    def get_interp_grid(self, reflectThresh=0.0, grid_size_degree=0.025):
         lonMin, lonMax = np.min(self.xlocs), np.max(self.xlocs)
         latMin, latMax = np.min(self.ylocs), np.max(self.ylocs)
 
@@ -200,7 +200,7 @@ class RadarSlice_L2(object):
         grid = np.dstack((xgrid, ygrid)).reshape(xgrid.size,2)
 
         interp_grid = griddata(points=interp_locs,
-              values=np.ravel(self.data),
+              values=np.ravel(np.where(self.clippedData >= reflectThresh, self.clippedData, np.nan)),
               xi=grid, method='linear')
 
         interp_grid = interp_grid.reshape(np.shape(xgrid))

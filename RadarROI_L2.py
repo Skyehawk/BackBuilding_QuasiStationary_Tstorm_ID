@@ -128,7 +128,7 @@ class RadarROI_L2(RadarSlice_L2):
         rDataMaskClip = grid[self.mask]
         self.clippedData = rDataMaskedClip*rDataMaskClip
 
-        rRangeMapMaskedClip = self.rangeMap[:,:-1][self.mask]
+        rRangeMapMaskedClip = self.rangeMap[:,:][self.mask]     # self.rangeMap[:,:-1][self.mask] had to drop the tail clip for KMPX
         self.clippedRangeMap = rRangeMapMaskedClip*rDataMaskClip
 
         self.xlocs = self.xlocs[self.mask]
@@ -159,7 +159,7 @@ class RadarROI_L2(RadarSlice_L2):
         return self.varReflectivity
 
     #Override
-    def get_interp_grid(self, grid_size_degree=0.0025):
+    def get_interp_grid(self, reflectThresh = 0.0, grid_size_degree=0.0025):
         #lonMin, lonMax = np.min(self.xlocs), np.max(self.xlocs)
         #latMin, latMax = np.min(self.ylocs), np.max(self.ylocs)
 
@@ -179,7 +179,7 @@ class RadarROI_L2(RadarSlice_L2):
         grid = np.dstack((xgrid, ygrid)).reshape(xgrid.size,2)
 
         interp_grid= griddata(points=interp_locs,
-              values=np.ravel(self.clippedData),
+              values=np.ravel(np.where(self.clippedData >= reflectThresh, self.clippedData, np.nan)),
               xi=grid, method='linear')
 
         interp_grid = interp_grid.reshape(np.shape(xgrid))

@@ -6,6 +6,8 @@ import s3fs
 import pandas as pd
 from metpy.io import Level2File
 from metpy.plots import add_timestamp, colortables, ctables
+from io import BytesIO
+import gzip
 
 import time
 import datetime
@@ -26,8 +28,6 @@ def parse_arg():
     """
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--var_a", type=int, default=1)
-    parser.add_argument("--var_b", type=int, default=2)
     parser.add_argument("--save_name", type=str,required=True)
     parser.add_argument("-t", "--convTime", type=str, help="passed: -t <YYYYMMDDHHMMSS> Start time of observation (UTC)")
     parser.add_argument("-i", "--convInterval", type=str, default='0200', help="passed: -i <HHMM> Period of observation measured from start time (inclusive)")
@@ -37,6 +37,7 @@ def parse_arg():
     parser.add_argument("-b", "--convBearing", type=float, help="passed: -b Bearing of storm training, in Rads, measured CCW from East")
     parser.add_argument("-s", "--sensor", help=" 4 letter code for sensor")
     parser.add_argument("-sf", "--scaleFactor", type=float, default=1.0, help=" (Optional) Scale factor for ROI when performing sensitivity analysis")
+    parser.add_argument("-th", "--thinning" type=int, default=2, help=" (Optional) thinning of NEXRAD files to process")
 
     params = vars(parser.parse_args())
 
@@ -76,14 +77,18 @@ def calculate_radar_stats(d, radarFile):
             'KFSD':(43.5778, -96.7539), 'KUDX':(44.125, -102.82944), 
             'KOAX':(41.32028, -96.36639), 'KLNX':(41.95778, -100.57583), 
             'KUEX':(40.32083, -98.44167), 'KGLD':(39.36722, -101.69333),
-            'KCYS':(41.15166, -104.80622)}
+            'KCYS':(41.15166, -104.80622), 'KMPX':(44.848889, -93.565528) }
 
     offset = np.array([sensors[params['sensor']][0] - params['convLat'],
                         sensors[params['sensor']][1] - params['convLon']])
 
-    baseCrds = np.array([(0.8750,0.25,0.0,1.0),(0.8750,-0.25,0.0,1.0),
-                        (-0.125,-0.125,0.0,1.0),(-0.125,0.125,0.0,1.0),
-                        (0.8750,0.25,0.0,1.0)])     #crds of base bounding box (Gridded degrees)
+    #baseCrds = np.array([(0.8750,0.25,0.0,1.0),(0.8750,-0.25,0.0,1.0),
+    #                    (-0.125,-0.125,0.0,1.0),(-0.125,0.125,0.0,1.0),
+    #                    (0.8750,0.25,0.0,1.0)])     #crds of base bounding box (Gridded degrees)
+
+    baseCrds = np.array([(1.00,2.00,0.0,1.0),(1.00,-2.00,0.0,1.0),
+                    (-1.00,-2.00,0.0,1.0),(-1.00,2.00,0.0,1.0),
+                    (1.00,2.00,0.0,1.0)])     #crds of base bounding box (Gridded degrees)
 
     roi.calc_cartesian()
     roi.shift_cart_orgin(offset=offset)
@@ -92,19 +97,19 @@ def calculate_radar_stats(d, radarFile):
     roi.extractROI(baseCrds=baseCrds, baseBearing=params['convBearing'], scaleFactor=params['scaleFactor'])    
 
     reflectThresh = params['convThreshMin']                      # return strength threshold (135.0 = 35dbz)     
-    roi.find_area(reflectThresh)
-    roi.find_mean_reflectivity(reflectThresh)
-    roi.find_variance_reflectivity(reflectThresh)
+    #roi.find_area(reflectThresh)
+    #roi.find_mean_reflectivity(reflectThresh)
+    #roi.find_variance_reflectivity(reflectThresh)
 
     print('Entering interpolation')
-    roiRegGrid = roi.get_interp_grid()                           # Interpolate a regular 2D Grid from the limits established by ROI polygon crds and a cell sixw
+    roiRegGrid = roi.get_interp_grid(reflectThresh=5.0, grid_size_degree=0.01)         # Interpolate a regular 2D Grid from the limits established by ROI polygon crds and a cell sixw
     roiAxisCollapse = np.nanmean(roiRegGrid[2], axis=0)          # Collapse that grid along the 0th axis to average at each unnique longitude spacing
 
     d[roi.sweepDateTime] = [roi.sweepDateTime,roi.metadata,roi.sensorData,\
                             roi.mask,roi.xlocs,roi.ylocs,roi.clippedData,\
                             roi.polyVerts,offset,roi.area,roi.meanReflectivity,\
                             roi.varReflectivity, roiRegGrid, roiAxisCollapse]
-    #del roi
+    del roi
 
 if __name__ == "__main__":
     params = parse_arg()  # Parse command line arguments
@@ -144,16 +149,14 @@ if __name__ == "__main__":
     
     filesToProcess = fileDF[((fileDF['Time'] >= startDateTime) \
                     & (fileDF['Time'] <= startDateTime + \
-                    intervalDateTime))]['L2File'].tolist()      
+                    intervalDateTime))]['L2File'].tolist()[::params['thinning']]
     logging.info(f'files: {[fs.info(obj)["Key"] for obj in filesToProcess]}')
-    #if len(filesToProcess) < 8:
-        #warnings.warn("n of radar inputs is not sufficent for curve smoothing",  UserWarning)
     print(f'Number of files to process: {len(filesToProcess)}')
 
 # --- Stream files ahead of time to avoid error with multiprocessing and file handles ---
     filesToWorkers = []
 
-    ### todo: read these in without streaming them
+    ### todo: read these in without streaming them to local if prior to 2016
     start = time.time()
     for L2FileStream in filesToProcess:#tqdm(filesToProcess,desc="Streaming L2 Files"):
         try:
@@ -161,9 +164,9 @@ if __name__ == "__main__":
                 filesToWorkers.append(Level2File(fs.open(L2FileStream)))
             else:
                 print("uhh-oh, date prior to 2016-01-01, different read required from s3")
-                #bytestream = BytesIO(L2FileStream.get()['Body'].read())
-                #with gzip.open(bytestream, 'rb') as f:
-                #    filesToWorkers.append(Level2File(f))  
+                bytestream = BytesIO(L2FileStream.get()['Body'].read())
+                with gzip.open(bytestream, 'rb') as f:
+                    filesToWorkers.append(Level2File(f))  
         except:
             print("Value Error, Most likely in parsing header" )
     
