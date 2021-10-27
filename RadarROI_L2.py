@@ -112,9 +112,6 @@ class RadarROI_L2(RadarSlice_L2):
                         shear=np.ones(3), translation=np.zeros(3))
 
         self.polyVerts = self.tm.dot(baseCrds.T).T[:,:2]    # Apply transformation Matrix, remove padding, and re-transpose
-        print(self.polyVerts)
-        print(type(self.polyVerts))
-
 
         # --- Generate ROI from coordiantes (above) create 2D boolean array to mask with ---
         xp,yp = self.xlocs.flatten(),self.ylocs.flatten()
@@ -131,7 +128,7 @@ class RadarROI_L2(RadarSlice_L2):
         rDataMaskClip = grid[self.mask]
         self.clippedData = rDataMaskedClip*rDataMaskClip
 
-        rRangeMapMaskedClip = self.rangeMap[:,:-1][self.mask]
+        rRangeMapMaskedClip = self.rangeMap[:,:][self.mask]     # self.rangeMap[:,:-1][self.mask] had to drop the tail clip for KMPX
         self.clippedRangeMap = rRangeMapMaskedClip*rDataMaskClip
 
         self.xlocs = self.xlocs[self.mask]
@@ -162,14 +159,12 @@ class RadarROI_L2(RadarSlice_L2):
         return self.varReflectivity
 
     #Override
-    def get_interp_grid(self, grid_size_degree=0.0025):
+    def get_interp_grid(self, reflectThresh = 0.0, grid_size_degree=0.0025):
         #lonMin, lonMax = np.min(self.xlocs), np.max(self.xlocs)
         #latMin, latMax = np.min(self.ylocs), np.max(self.ylocs)
 
         lonMin, lonMax = np.min(self.polyVerts[:,0]), np.max(self.polyVerts[:,0])
         latMin, latMax = np.min(self.polyVerts[:,1]), np.max(self.polyVerts[:,1])
-
-        print(np.min(self.polyVerts[:,0]))
 
         #Dimentions of regular grid
         latN = np.floor(np.abs(latMax-latMin)/grid_size_degree)
@@ -184,7 +179,7 @@ class RadarROI_L2(RadarSlice_L2):
         grid = np.dstack((xgrid, ygrid)).reshape(xgrid.size,2)
 
         interp_grid= griddata(points=interp_locs,
-              values=np.ravel(self.clippedData),
+              values=np.ravel(np.where(self.clippedData >= reflectThresh, self.clippedData, np.nan)),
               xi=grid, method='linear')
 
         interp_grid = interp_grid.reshape(np.shape(xgrid))

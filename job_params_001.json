@@ -14,7 +14,7 @@
             },
             {
                 "name": "convInterval",
-                "value": "0030"
+                "value": "0020"
             },
             {
                 "name": "convThreshMin",
@@ -39,6 +39,10 @@
             {
                 "name": "scaleFactor",
                 "value": "2.0"
+            },
+            {
+                "name": "thinning",
+                "value": "2"
             }
         ]
     }

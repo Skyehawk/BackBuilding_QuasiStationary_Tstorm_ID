@@ -145,12 +145,6 @@ class RadarSlice_L2(object):
     # Constructor (init)
     def __init__(self, radarFile, sweep=0):
         f = radarFile
-        #sweepDate = datetime.datetime(1970,1,1,0,0) + datetime.timedelta(f.sweeps[sweep][0][0][2] - 1)
-        #self.sweepDateTime =  sweepDate + datetime.timedelta(milliseconds=f.sweeps[sweep][0][0][1])
-        
-        
-        #print(f'type: {type(f.sweeps[sweep][0][0])}')
-        #print(f'value: {f.sweeps[sweep][0][0]}')
 
         # We use the first value to determine if the header is of type Msg31Hdr (2008 - pres) or Msg1Fmt (2007 & prior) 
         if type(f.sweeps[sweep][0][0][0]) is int:
@@ -161,9 +155,6 @@ class RadarSlice_L2(object):
             sweepDate = datetime.datetime(1970,1,1,0,0) + datetime.timedelta(f.sweeps[sweep][0][0][2] - 1)
             self.sweepDateTime =  sweepDate + datetime.timedelta(milliseconds=f.sweeps[sweep][0][0][1])
 
-        #print(f'SweepDT{self.sweepDateTime}')
-
-        #print(f'site: {self.sensorData}')
         self.az = np.array([ray[0].az_angle for ray in f.sweeps[sweep]])                    #create array of all azimuth angles within sweep
         
         if self.sweepDateTime >= datetime.datetime(2008, 1, 1):
@@ -171,9 +162,7 @@ class RadarSlice_L2(object):
             self.ref = np.array([ray[4][b'REF'][1] for ray in f.sweeps[sweep]])
         elif self.sweepDateTime < datetime.datetime(2008, 1, 1):
             ref_hdr = f.sweeps[sweep][0][1]['REF'][0]
-            #print(f'ref: {f.sweeps[sweep][0][4]['REF'][1]}')
             self.ref = np.array([ray[1]['REF'][1] for ray in f.sweeps[sweep]]) 
-        #print(f'ref: {self.ref[0]}')
 
         self.ref_range = np.arange(ref_hdr.num_gates) * ref_hdr.gate_width + ref_hdr.first_gate          #generate ranges of gates from the first gate outwards
 
@@ -193,7 +182,7 @@ class RadarSlice_L2(object):
         self.ylocs = (self.ref_range * np.cos(np.deg2rad(self.az[0:, np.newaxis]))/self.kmPerDeg)
         return True
 
-    def get_interp_grid(self, grid_size_degree=0.025):
+    def get_interp_grid(self, reflectThresh=0.0, grid_size_degree=0.025):
         lonMin, lonMax = np.min(self.xlocs), np.max(self.xlocs)
         latMin, latMax = np.min(self.ylocs), np.max(self.ylocs)
 
@@ -211,7 +200,7 @@ class RadarSlice_L2(object):
         grid = np.dstack((xgrid, ygrid)).reshape(xgrid.size,2)
 
         interp_grid = griddata(points=interp_locs,
-              values=np.ravel(self.data),
+              values=np.ravel(np.where(self.clippedData >= reflectThresh, self.clippedData, np.nan)),
               xi=grid, method='linear')
 
         interp_grid = interp_grid.reshape(np.shape(xgrid))
