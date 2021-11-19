@@ -131,8 +131,8 @@ class RadarROI_L2(RadarSlice_L2):
         rRangeMapMaskedClip = self.rangeMap[:,:][self.mask]     # self.rangeMap[:,:-1][self.mask] had to drop the tail clip for KMPX
         self.clippedRangeMap = rRangeMapMaskedClip*rDataMaskClip
 
-        self.xlocs = self.xlocs[self.mask]
-        self.ylocs = self.ylocs[self.mask]
+        self.xlocs = self.xlocs[self.mask].astype(np.float16)
+        self.ylocs = self.ylocs[self.mask].astype(np.float16)
         return self.clippedData
 
     #Override
@@ -184,7 +184,7 @@ class RadarROI_L2(RadarSlice_L2):
 
         interp_grid = interp_grid.reshape(np.shape(xgrid))
 
-        return xgrid.T, ygrid.T, interp_grid.T
+        return xgrid.T.astype(np.float16), ygrid.T.astype(np.float16), interp_grid.T.astype(np.float16)
 
     #Override
     def __str__(self):

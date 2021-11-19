@@ -58,6 +58,5 @@ python3 -u main.py ${arg_list} | tee "${save_name}.txt"
 ################################################################################
 ###### STEP 3: Upload results and logs to S3 bucket ############################
 ################################################################################
-#aws s3 cp "./${save_name}.txt" "s3://aws-batch-python-tutorial-sl1/results/${save_name}.txt" || error_exit "Failed to upload results to s3 bucket!"
 aws s3 cp "./${save_name}.p" "s3://aws-batch-python-tutorial-sl1/results/${save_name}.p" || error_exit "Failed to upload results to s3 bucket!"
 aws s3 cp "./${save_name}.txt" "s3://aws-batch-python-tutorial-sl1/logs/${save_name}.txt" || error_exit "Failed to upload logs to s3 bucket!"

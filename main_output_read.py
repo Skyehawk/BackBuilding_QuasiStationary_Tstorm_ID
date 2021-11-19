@@ -9,7 +9,7 @@ from metpy.plots import ctables
 
 if __name__ == "__main__":
 	objects = []
-	with (open("./KBIS_202106082000_0300_46.267_-100.875_0.00_2.0_2.p", "rb")) as openfile:
+	with (open("test.txt.p", "rb")) as openfile:
 		while True:
 			try:
 				objects.append(pickle.load(openfile))
@@ -18,7 +18,7 @@ if __name__ == "__main__":
 
 	obj = objects[0]
 	obj = obj.transpose(2, 1, 0)	#transpose our 3d array for more logical slicing
-	
+
 	xlocs = obj[:][:][0].astype(float)
 	print(f'xlocs shape: {np.shape(xlocs)}')
 	#print(xlocs[0][0])
@@ -33,7 +33,7 @@ if __name__ == "__main__":
 
 	data  = obj[:][:][2].astype(float)
 	print(f'data shape: {np.shape(data)}')
-	#print(data[np.shape(data)[0]//2:])						# There are a lot of nanas near edges, so print may not be super insightful, so we index to grab a chunk out of the middle
+	#print(data[np.shape(data)[0]//2:])						# There are a lot of nans near edges, so print may not be super insightful, so we index to grab a chunk out of the middle
 	#print(type(data[0][0]))
 
 	fig, axes = plt.subplots(2,2, figsize=(20,20),

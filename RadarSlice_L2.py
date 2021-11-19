@@ -166,20 +166,20 @@ class RadarSlice_L2(object):
 
         self.ref_range = np.arange(ref_hdr.num_gates) * ref_hdr.gate_width + ref_hdr.first_gate          #generate ranges of gates from the first gate outwards
 
-        self.data = np.ma.array(self.ref)
+        self.data = np.ma.array(self.ref).astype(np.float16)
         self.data[np.isnan(self.data)] = np.ma.masked                                            # Mask out the zeros
 
         #range map - km^2 at each bin in range*azimuth
         rangeStep = ref_hdr.gate_width
         l = lambda x:(1.0/len(self.az))*((np.pi*(x+ref_hdr.gate_width)**2)-(np.pi*(x)**2))
         self.rangeMap = np.ones(tuple(map(operator.add,self.data[:, :-1].shape,(0,1)))) * \
-                                np.array([[l(xi) for xi in self.ref_range]])
+                                np.array([[l(xi) for xi in self.ref_range]]).astype(np.float16)
 
     def calc_cartesian(self):
         # these values will be the same for both the data and for the rangeMap values
         self.kmPerDeg = 111.0
-        self.xlocs = (self.ref_range * np.sin(np.deg2rad(self.az[0:, np.newaxis]))/self.kmPerDeg) # Convert az,range to x,y, change to deg from km
-        self.ylocs = (self.ref_range * np.cos(np.deg2rad(self.az[0:, np.newaxis]))/self.kmPerDeg)
+        self.xlocs = (self.ref_range * np.sin(np.deg2rad(self.az[0:, np.newaxis]))/self.kmPerDeg).astype(np.float16) # Convert az,range to x,y, change to deg from km
+        self.ylocs = (self.ref_range * np.cos(np.deg2rad(self.az[0:, np.newaxis]))/self.kmPerDeg).astype(np.float16)
         return True
 
     def get_interp_grid(self, reflectThresh=0.0, grid_size_degree=0.025):

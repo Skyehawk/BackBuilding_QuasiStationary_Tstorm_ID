@@ -13,14 +13,21 @@ import time
 import datetime
 import multiprocessing as mp
 from multiprocessing.pool import ThreadPool as TPool
+from multiprocessing.pool import Pool
 
 import logging
 
 import matplotlib.pyplot as plt 
 from matplotlib import dates as mpl_dates
+import cartopy
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
 
 from RadarSlice_L2 import RadarSlice_L2
 from RadarROI_L2 import RadarROI_L2
+
+import warnings     # Debug (progress bars bugged by matplotlib futurewarnings output being annoying)
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 def parse_arg():
     """
@@ -70,7 +77,10 @@ def calculate_radar_stats(d, radarFile):
             radarfile <metpy.io Level2File> 
     Return: None 
     '''
-    roi = RadarROI_L2(radarFile=radarFile)
+    L2File = Level2File(fs.open(radarFile))
+
+
+    roi = RadarROI_L2(radarFile=L2File)
 
     sensors = {'KMVX':(47.52806, -97.325), 'KBIS':(46.7825, -100.7572), 
             'KMBX':(48.3925, -100.86444), 'KABR':(45.4433, -98.4134), 
@@ -86,10 +96,35 @@ def calculate_radar_stats(d, radarFile):
     #                    (-0.125,-0.125,0.0,1.0),(-0.125,0.125,0.0,1.0),
     #                    (0.8750,0.25,0.0,1.0)])     #crds of base bounding box (Gridded degrees)
 
-    baseCrds = np.array([(1.00,2.00,0.0,1.0),(1.00,-2.00,0.0,1.0),
-                    (-1.00,-2.00,0.0,1.0),(-1.00,2.00,0.0,1.0),
-                    (1.00,2.00,0.0,1.0)])     #crds of base bounding box (Gridded degrees)
+    baseCrds = np.array([(1.00,1.00,0.0,1.0),(1.00,-1.00,0.0,1.0),
+                    (-1.00,-1.00,0.0,1.0),(-1.00,1.00,0.0,1.0),
+                    (1.00,1.00,0.0,1.0)])     #crds of base bounding box (Gridded degrees)
 
+    # The Western Michigan University 'W'
+    '''
+    baseCrds = np.array([[-0.93601896, -0.48815166,  0.        ,  1.        ],
+       [-0.6042654 , -0.48815166,  0.        ,  1.        ],
+       [-0.6042654 , -0.30805687,  0.        ,  1.        ],
+       [-0.66587678, -0.30805687,  0.        ,  1.        ],
+       [-0.57345972,  0.0521327 ,  0.        ,  1.        ],
+       [-0.44549763, -0.48815166,  0.        ,  1.        ],
+       [-0.26303318, -0.48815166,  0.        ,  1.        ],
+       [-0.13507109,  0.0521327 ,  0.        ,  1.        ],
+       [-0.04265403, -0.30805687,  0.        ,  1.        ],
+       [-0.10663507, -0.30805687,  0.        ,  1.        ],
+       [-0.10663507, -0.48815166,  0.        ,  1.        ],
+       [ 0.22748815, -0.48815166,  0.        ,  1.        ],
+       [ 0.22748815, -0.30805687,  0.        ,  1.        ],
+       [ 0.17772512, -0.30805687,  0.        ,  1.        ],
+       [-0.03080569,  0.51184834,  0.        ,  1.        ],
+       [-0.21800948,  0.51184834,  0.        ,  1.        ],
+       [-0.35545024,  0.        ,  0.        ,  1.        ],
+       [-0.492891  ,  0.51184834,  0.        ,  1.        ],
+       [-0.67772512,  0.51184834,  0.        ,  1.        ],
+       [-0.88625592, -0.30805687,  0.        ,  1.        ],
+       [-0.93601896, -0.30805687,  0.        ,  1.        ],
+       [-0.93601896, -0.48815166,  0.        ,  1.        ]])
+    '''
     roi.calc_cartesian()
     roi.shift_cart_orgin(offset=offset)
 
@@ -102,7 +137,7 @@ def calculate_radar_stats(d, radarFile):
     #roi.find_variance_reflectivity(reflectThresh)
 
     print('Entering interpolation')
-    roiRegGrid = roi.get_interp_grid(reflectThresh=5.0, grid_size_degree=0.01)         # Interpolate a regular 2D Grid from the limits established by ROI polygon crds and a cell sixw
+    roiRegGrid = roi.get_interp_grid(reflectThresh=5.0, grid_size_degree=0.005)         # Interpolate a regular 2D Grid from the limits established by ROI polygon crds and a cell sixw
     roiAxisCollapse = np.nanmean(roiRegGrid[2], axis=0)          # Collapse that grid along the 0th axis to average at each unnique longitude spacing
 
     d[roi.sweepDateTime] = [roi.sweepDateTime,roi.metadata,roi.sensorData,\
@@ -114,11 +149,13 @@ def calculate_radar_stats(d, radarFile):
 if __name__ == "__main__":
     params = parse_arg()  # Parse command line arguments
 
+    #http = urllib3.PoolManager(num_pools=12)        #nnumber of sockets open for data streaming, set equal-to or greater than threads count to be used
+
     fs = s3fs.S3FileSystem(anon=True) # accessing all public buckets
     
     manager = mp.Manager()
     results = manager.dict()
-    pool = TPool(12)
+    pool = TPool(10)
     jobs = []
 
     startDateTime = datetime.datetime.strptime(params['convTime'], '%Y%m%d%H%M')
@@ -158,10 +195,12 @@ if __name__ == "__main__":
 
     ### todo: read these in without streaming them to local if prior to 2016
     start = time.time()
-    for L2FileStream in filesToProcess:#tqdm(filesToProcess,desc="Streaming L2 Files"):
+    for L2FileStream in filesToProcess[:-1]:
+        if str(L2FileStream)[-4:] =="_MDM":                 #drop off any *_MDM files
+            continue
         try:
             if datetime.datetime.strptime(fs.info(L2FileStream)['Key'][39:53], '%Y%m%d_%H%M%S') >= datetime.datetime(2016, 1, 1):
-                filesToWorkers.append(Level2File(fs.open(L2FileStream)))
+                filesToWorkers.append(L2FileStream)
             else:
                 print("uhh-oh, date prior to 2016-01-01, different read required from s3")
                 bytestream = BytesIO(L2FileStream.get()['Body'].read())
@@ -172,6 +211,7 @@ if __name__ == "__main__":
     
     # --- Create pool for workers ---
     for file in filesToWorkers:
+        print(file)
         job = pool.apply_async(calculate_radar_stats, (results, file))
         jobs.append(job)
 
@@ -181,6 +221,7 @@ if __name__ == "__main__":
 
     pool.close()
     pool.join()
+    del pool
 
     columns =['sweepDateTime', 'metadata', 'sensorData', 'indices', 'xlocs', 'ylocs', 
                 'data', 'polyVerts', 'offset', 'areaValue', 'refValue', 'varRefValue',
@@ -190,7 +231,7 @@ if __name__ == "__main__":
     resultsDF = pd.DataFrame.from_dict(results, orient='index', columns=columns)    #SUPER slow
     print('Converting datetimes...')
     resultsDF['sweepDateTime'] = pd.to_datetime(resultsDF.sweepDateTime)
-    
+
     print('Sorting...')
     resultsDF.sort_values(by='sweepDateTime', inplace=True)
     print(resultsDF[['areaValue','refValue']].head(5))
@@ -199,7 +240,7 @@ if __name__ == "__main__":
     elapsed = (f'{time.time() - start}')
     print(f'elapsed: {elapsed}')
 
-    
+    '''    
     fig, axes = plt.subplots(2,2, figsize=(20,20),
         gridspec_kw={'width_ratios':[10, 10], 
      'height_ratios': [10, 10], 'wspace': 0.375,
@@ -223,9 +264,9 @@ if __name__ == "__main__":
     axes[0][0].set_title("Hovmöller Diagram - Mean Reflectivity")
 
     plt.show()
-
+    
     '''
-    # --- Plot time series---
+    # --- Plot series ---
     fig, axes = plt.subplots(4, 4, figsize=(30, 30),
      gridspec_kw={'width_ratios': [10, 10, 10, 10], 
      'height_ratios': [10, 1, 10, 1], 'wspace': 0.375,
@@ -263,7 +304,7 @@ if __name__ == "__main__":
             
         axes[ploty][plotx].plot(0.0, 0.0, 'bx')                     # Location of the convection
         axes[ploty][plotx].text(0.0, 0.0, str(params['convLat']) + ' , ' + str(params['convLon']))
-        #add_timestamp(axes[ploty][plotx], record['sweepDateTime'], y=0.02, high_contrast=True)
+        add_timestamp(axes[ploty][plotx], record['sweepDateTime'], y=0.02, high_contrast=True, fontsize=6.0)
         axes[ploty][plotx].tick_params(axis='both', which='both')
 
         # Create an axis average and add to plot
@@ -297,14 +338,22 @@ if __name__ == "__main__":
         #add_timestamp(axes[ploty + 2][plotx], record['sweepDateTime'], y=0.02, high_contrast=True)
         axes[ploty + 2][plotx].tick_params(axis='both', which='both')
 
-
+    
 
 # ------- debug ----
 
 
 
     plt.show()
-    '''
+
+
 
     # Write results to file with the provided "save_name"
-    pickle.dump(elapsed, open('{}.p'.format(params['save_name']), 'wb'))
+
+    result_out = np.dstack((*np.meshgrid(resultsDF['regRectGrid'].values[0][0][0,:],
+                            np.datetime_as_string(resultsDF['sweepDateTime'].values, timezone='UTC', unit='s')),
+                            np.stack(resultsDF['axisCollapseValues'].values)))
+
+    #print(np.shape(result_out))
+
+    pickle.dump(result_out, open('{}.p'.format(params['save_name']), 'wb'))

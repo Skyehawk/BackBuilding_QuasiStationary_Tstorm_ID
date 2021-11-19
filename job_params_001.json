@@ -6,7 +6,7 @@
         "environment": [
             {
                 "name": "save_name",
-                "value": "sample_job_1"
+                "value": "KBIS_202106082000_0300_46.267_-100.875_0.00_2.0_2"
             },
             {
                 "name": "convTime",
@@ -14,7 +14,7 @@
             },
             {
                 "name": "convInterval",
-                "value": "0020"
+                "value": "0030"
             },
             {
                 "name": "convThreshMin",
