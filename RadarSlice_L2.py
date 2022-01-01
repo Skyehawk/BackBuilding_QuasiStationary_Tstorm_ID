@@ -25,7 +25,7 @@ class RadarSlice_L2(object):
     def metadata(self):
         if not hasattr(self,'_metadata'):
             self._metadata = None
-            warnings.warn("Radar_Slice: No input metadata parsed on __init__", UserWarning)
+            #warnings.warn("Radar_Slice: No input metadata parsed on __init__", UserWarning)
         return self._metadata
     
     @property

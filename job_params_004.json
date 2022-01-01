@@ -1,12 +1,12 @@
 {
     "jobName": "Batch_Dev_testing",
-    "jobQueue": "Batch_NEXRADL2_ROI_Hovmoller_Gen_Queue",
-    "jobDefinition": "Batch_NEXRADL2_ROI_Hovmoller_Gen",
+    "jobQueue": "Batch_NEXRADL2_ROI_Hovmoller_Gen_Queue_ec2",
+    "jobDefinition": "Batch_NEXRADL2_ROI_Hovmoller_Gen_ec2",
     "containerOverrides": {
         "environment": [
             {
                 "name": "save_name",
-                "value": "KBIS_202106080000_2400_46.267_-99.865_0.000_1.0_1"
+                "value": "KBIS_202106080000_1200_46.267_-99.865_0.000_1.0_1"
             },
             {
                 "name": "convTime",

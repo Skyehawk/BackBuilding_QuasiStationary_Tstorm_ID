@@ -1,6 +1,7 @@
 # ignore .git and .cache folders
 .git
 .cache
+.gitignore
 
 # ignore folders
 branches/
@@ -8,6 +9,9 @@ hooks/
 img/
 info/
 objects/
+
+# ignore all our output files that are in root
+*.p
 
 # ignore files
 config
